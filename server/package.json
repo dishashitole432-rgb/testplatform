@@ -8,6 +8,9 @@
     "start": "node src/server.js",
     "test": "echo \"No tests configured\""
   },
+  "engines": {
+    "node": "20.x"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
