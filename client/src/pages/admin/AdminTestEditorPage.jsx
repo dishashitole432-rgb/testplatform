@@ -135,6 +135,9 @@ export default function AdminTestEditorPage() {
           <button className="ghostButton" onClick={() => navigate("/admin")}>
             Back to Tests
           </button>
+          <Link className="ghostButton linkAsButton" to={`/admin/tests/${testId}/submissions`}>
+            Submissions
+          </Link>
           <button className="ghostButton" onClick={togglePublish}>
             {currentTest.published ? "Unpublish" : "Publish"}
           </button>

@@ -4,6 +4,7 @@ import { setToken } from "./api";
 import AuthPage from "./pages/AuthPage";
 import AdminTestsPage from "./pages/admin/AdminTestsPage";
 import AdminTestEditorPage from "./pages/admin/AdminTestEditorPage";
+import AdminSubmissionsPage from "./pages/admin/AdminSubmissionsPage";
 import CandidateHomePage from "./pages/candidate/CandidateHomePage";
 import ExamPage from "./pages/candidate/ExamPage";
 import ResultPage from "./pages/candidate/ResultPage";
@@ -54,6 +55,7 @@ export default function App() {
 
         <Route path="/admin" element={isAdmin ? <AdminTestsPage /> : <Navigate to="/candidate" replace />} />
         <Route path="/admin/tests/:testId" element={isAdmin ? <AdminTestEditorPage /> : <Navigate to="/candidate" replace />} />
+        <Route path="/admin/tests/:testId/submissions" element={isAdmin ? <AdminSubmissionsPage /> : <Navigate to="/candidate" replace />} />
 
         <Route path="/candidate" element={!isAdmin ? <CandidateHomePage /> : <Navigate to="/admin" replace />} />
         <Route path="/candidate/exam/:attemptId" element={!isAdmin ? <ExamPage /> : <Navigate to="/admin" replace />} />

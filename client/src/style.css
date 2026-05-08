@@ -9,6 +9,10 @@ body {
   color: #111827;
 }
 
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
 label {
   display: block;
   margin: 14px 0 6px;
@@ -252,6 +256,50 @@ button:disabled {
   color: #374151;
 }
 
+.recordsTable {
+  margin-top: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.recordsHeader,
+.recordsRow {
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr 0.6fr 1fr;
+  gap: 12px;
+  padding: 12px;
+  align-items: center;
+}
+
+.recordsHeader {
+  background: #f9fafb;
+  font-weight: 800;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.recordsRow {
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.recordsRow:last-child {
+  border-bottom: none;
+}
+
+.scorePill {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e0ecff;
+  color: #1d4ed8;
+  font-weight: 800;
+  width: fit-content;
+}
+
 .questionTable {
   margin-top: 12px;
   display: grid;
@@ -487,5 +535,10 @@ button:disabled {
   .questionActions {
     width: 100%;
     flex-direction: row;
+  }
+
+  .recordsHeader,
+  .recordsRow {
+    grid-template-columns: 1fr;
   }
 }
