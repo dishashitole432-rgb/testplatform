@@ -15,6 +15,9 @@ export default function App() {
   const [questionState, setQuestionState] = useState({ question: null, totalQuestions: 0, order: 1, selectedOptionIndex: null, remaining: 0 });
   const [result, setResult] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [testForm, setTestForm] = useState({ title: "", description: "" });
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => setToken(token), [token]);
   const isAdmin = user?.role === "admin";
@@ -45,12 +48,20 @@ export default function App() {
   }, [questionState, result]);
 
   const loginOrRegister = async () => {
-    if (mode === "register") await api.post("/auth/register", authForm);
-    const { data } = await api.post("/auth/login", { email: authForm.email, password: authForm.password });
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    setAuthToken(data.token);
-    setUser(data.user);
+    setStatus("");
+    setBusy(true);
+    try {
+      if (mode === "register") await api.post("/auth/register", authForm);
+      const { data } = await api.post("/auth/login", { email: authForm.email, password: authForm.password });
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      setAuthToken(data.token);
+      setUser(data.user);
+    } catch (error) {
+      setStatus(error?.response?.data?.message || "Authentication failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const logout = () => {
@@ -62,14 +73,46 @@ export default function App() {
   };
 
   const createTest = async () => {
-    await api.post("/tests", { title: `New Test ${Date.now()}`, description: "MCQ test" });
+    if (!testForm.title.trim()) {
+      setStatus("Please enter test name.");
+      return;
+    }
+    setStatus("");
+    await api.post("/tests", { title: testForm.title.trim(), description: testForm.description.trim() });
+    setTestForm({ title: "", description: "" });
     await loadData();
+  };
+
+  const updateSelectedTest = async () => {
+    if (!selectedTestId) return;
+    if (!testForm.title.trim()) {
+      setStatus("Please enter test name.");
+      return;
+    }
+    setStatus("");
+    await api.patch(`/tests/${selectedTestId}`, {
+      title: testForm.title.trim(),
+      description: testForm.description.trim(),
+    });
+    await loadData();
+    setStatus("Test details updated.");
   };
 
   const addQuestion = async () => {
     if (!selectedTestId) return;
+    if (!questionDraft.prompt.trim()) {
+      setStatus("Please add a question statement.");
+      return;
+    }
+    if (questionDraft.options.some((option) => !option.trim())) {
+      setStatus("Please fill all four options.");
+      return;
+    }
+    setStatus("");
     await api.post(`/tests/${selectedTestId}/questions`, {
       ...questionDraft,
+      prompt: questionDraft.prompt.trim(),
+      options: questionDraft.options.map((option) => option.trim()),
       correctOptionIndex: Number(questionDraft.correctOptionIndex),
       marks: Number(questionDraft.marks),
       timeLimitSec: Number(questionDraft.timeLimitSec),
@@ -84,6 +127,7 @@ export default function App() {
   };
 
   const startTest = async (testId) => {
+    setStatus("");
     const { data } = await api.post(`/attempts/start/${testId}`);
     setAttempt(data);
     setResult(null);
@@ -128,24 +172,46 @@ export default function App() {
   };
 
   const currentTest = useMemo(() => tests.find((t) => t._id === selectedTestId), [tests, selectedTestId]);
+  const progressPercent = questionState.totalQuestions
+    ? Math.round((questionState.order / questionState.totalQuestions) * 100)
+    : 0;
+
+  const selectTestForEdit = (testItem) => {
+    setSelectedTestId(testItem._id);
+    setTestForm({ title: testItem.title || "", description: testItem.description || "" });
+    setStatus("");
+  };
 
   if (!user) {
     return (
-      <div className="page auth">
-        <div className="card">
-          <h1>Online Test Platform</h1>
-          <p>Create and attempt timed MCQ tests.</p>
-          {mode === "register" && <input placeholder="Name" value={authForm.name} onChange={(e) => setAuthForm((p) => ({ ...p, name: e.target.value }))} />}
-          <input placeholder="Email" value={authForm.email} onChange={(e) => setAuthForm((p) => ({ ...p, email: e.target.value }))} />
-          <input type="password" placeholder="Password" value={authForm.password} onChange={(e) => setAuthForm((p) => ({ ...p, password: e.target.value }))} />
+      <div className="authWrap">
+        <div className="authPanel">
+          <h1>Test Platform</h1>
+          <p>Manage and take timed MCQ tests with instant scoring.</p>
           {mode === "register" && (
-            <select value={authForm.role} onChange={(e) => setAuthForm((p) => ({ ...p, role: e.target.value }))}>
-              <option value="candidate">Candidate</option>
-              <option value="admin">Admin</option>
-            </select>
+            <>
+              <label htmlFor="name">Full Name</label>
+              <input id="name" placeholder="e.g. Akash Sharma" value={authForm.name} onChange={(e) => setAuthForm((p) => ({ ...p, name: e.target.value }))} />
+            </>
           )}
-          <button onClick={loginOrRegister}>{mode === "login" ? "Login" : "Register & Login"}</button>
-          <button className="ghost" onClick={() => setMode((m) => (m === "login" ? "register" : "login"))}>
+          <label htmlFor="email">Email</label>
+          <input id="email" placeholder="you@example.com" value={authForm.email} onChange={(e) => setAuthForm((p) => ({ ...p, email: e.target.value }))} />
+          <label htmlFor="password">Password</label>
+          <input id="password" type="password" placeholder="Minimum 6 characters" value={authForm.password} onChange={(e) => setAuthForm((p) => ({ ...p, password: e.target.value }))} />
+          {mode === "register" && (
+            <>
+              <label htmlFor="role">Role</label>
+              <select id="role" value={authForm.role} onChange={(e) => setAuthForm((p) => ({ ...p, role: e.target.value }))}>
+                <option value="candidate">Candidate</option>
+                <option value="admin">Admin</option>
+              </select>
+            </>
+          )}
+          {status && <p className="statusError">{status}</p>}
+          <button disabled={busy} onClick={loginOrRegister}>
+            {busy ? "Please wait..." : mode === "login" ? "Login" : "Register & Login"}
+          </button>
+          <button className="ghostButton" onClick={() => setMode((m) => (m === "login" ? "register" : "login"))}>
             Switch to {mode === "login" ? "Register" : "Login"}
           </button>
         </div>
@@ -153,106 +219,236 @@ export default function App() {
     );
   }
 
+  if (!isAdmin && attempt && questionState.question && !result) {
+    return (
+      <div className="examShell">
+        <header className="examHeader">
+          <div>
+            <h2>Live Test</h2>
+            <p>
+              Question {questionState.order} of {questionState.totalQuestions}
+            </p>
+          </div>
+          <div className={`timerBadge ${questionState.remaining < 6 ? "danger" : ""}`}>
+            {String(Math.floor(questionState.remaining / 60)).padStart(2, "0")}:
+            {String(questionState.remaining % 60).padStart(2, "0")}
+          </div>
+        </header>
+        <div className="progressTrack">
+          <div className="progressFill" style={{ width: `${progressPercent}%` }} />
+        </div>
+
+        <main className="examCard">
+          <h3>{questionState.question.prompt}</h3>
+          <div className="optionList">
+            {questionState.question.options.map((op, i) => (
+              <button
+                key={i}
+                className={`optionButton ${questionState.selectedOptionIndex === i ? "active" : ""}`}
+                onClick={() => setQuestionState((p) => ({ ...p, selectedOptionIndex: i }))}
+              >
+                <span className="optionIndex">{String.fromCharCode(65 + i)}</span>
+                <span>{op}</span>
+              </button>
+            ))}
+          </div>
+          <div className="examActions">
+            <button onClick={() => saveAnswer(false)}>
+              {questionState.order < questionState.totalQuestions ? "Save & Next" : "Save & Submit"}
+            </button>
+            <button className="ghostButton" onClick={submitAttempt}>
+              Submit Test
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
-      <header>
-        <h2>Welcome, {user.name}</h2>
-        <div className="row">
+      <header className="topBar">
+        <div>
+          <h2>Welcome, {user.name}</h2>
+          <p>{isAdmin ? "Create structured tests with clear question controls." : "Select a test to begin."}</p>
+        </div>
+        <div className="inlineRow">
           <span className="badge">{user.role}</span>
-          <button onClick={logout}>Logout</button>
+          <button className="ghostButton" onClick={logout}>
+            Logout
+          </button>
         </div>
       </header>
+      {status && <p className="statusText">{status}</p>}
 
       {isAdmin ? (
-        <section className="grid2">
-          <div className="card">
-            <h3>Admin Panel</h3>
-            <button onClick={createTest}>Create Test</button>
+        <section className="layoutAdmin">
+          <div className="panel">
+            <h3>Create or Edit Test</h3>
+            <p className="muted">Use a clear test name so candidates understand what they are attempting.</p>
+
+            <label htmlFor="testTitle">Test Name</label>
+            <input
+              id="testTitle"
+              placeholder="e.g. JavaScript Fundamentals - Level 1"
+              value={testForm.title}
+              onChange={(e) => setTestForm((p) => ({ ...p, title: e.target.value }))}
+            />
+
+            <label htmlFor="testDesc">Description (optional)</label>
+            <textarea
+              id="testDesc"
+              placeholder="Briefly describe this test..."
+              value={testForm.description}
+              onChange={(e) => setTestForm((p) => ({ ...p, description: e.target.value }))}
+            />
+
+            <div className="inlineRow">
+              <button onClick={createTest}>Create New Test</button>
+              <button className="ghostButton" onClick={updateSelectedTest} disabled={!selectedTestId}>
+                Update Selected Test
+              </button>
+            </div>
+
+            <h4 className="sectionTitle">Your Tests</h4>
+            {tests.length === 0 && <p className="muted">No tests yet. Create your first test above.</p>}
             {tests.map((t) => (
-              <div key={t._id} className="testRow">
+              <div key={t._id} className={`testCard ${selectedTestId === t._id ? "selected" : ""}`}>
                 <div>
-                  <b>{t.title}</b>
-                  <p>{t.questions.length} questions</p>
+                  <strong>{t.title}</strong>
+                  <p>{t.description || "No description"}</p>
+                  <small>{t.questions.length} questions</small>
                 </div>
-                <div className="row">
-                  <button onClick={() => setSelectedTestId(t._id)}>Edit</button>
-                  <button className="ghost" onClick={() => togglePublish(t._id, t.published)}>{t.published ? "Unpublish" : "Publish"}</button>
-                  <button className="ghost" onClick={() => fetchSubmissions(t._id)}>Submissions</button>
+                <div className="stackButtons">
+                  <button className="ghostButton" onClick={() => selectTestForEdit(t)}>
+                    Select
+                  </button>
+                  <button className="ghostButton" onClick={() => togglePublish(t._id, t.published)}>
+                    {t.published ? "Unpublish" : "Publish"}
+                  </button>
+                  <button className="ghostButton" onClick={() => fetchSubmissions(t._id)}>
+                    View Submissions
+                  </button>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="card">
+          <div className="panel">
             <h3>Question Builder</h3>
-            <p>Selected: {currentTest?.title || "None"}</p>
-            <input placeholder="Question" value={questionDraft.prompt} onChange={(e) => setQuestionDraft((p) => ({ ...p, prompt: e.target.value }))} />
+            <p className="muted">
+              {currentTest ? (
+                <>Adding questions to: <strong>{currentTest.title}</strong></>
+              ) : (
+                "Select a test first. Then add questions below."
+              )}
+            </p>
+
+            <label htmlFor="questionPrompt">Question Statement</label>
+            <textarea
+              id="questionPrompt"
+              placeholder="Write the full question..."
+              value={questionDraft.prompt}
+              onChange={(e) => setQuestionDraft((p) => ({ ...p, prompt: e.target.value }))}
+            />
+
+            <label>Options (exactly 4)</label>
             {questionDraft.options.map((op, idx) => (
-              <input key={idx} placeholder={`Option ${idx + 1}`} value={op} onChange={(e) => setQuestionDraft((p) => ({ ...p, options: p.options.map((x, i) => (i === idx ? e.target.value : x)) }))} />
+              <input
+                key={idx}
+                placeholder={`Option ${idx + 1}`}
+                value={op}
+                onChange={(e) =>
+                  setQuestionDraft((p) => ({ ...p, options: p.options.map((x, i) => (i === idx ? e.target.value : x)) }))
+                }
+              />
             ))}
-            <div className="row">
-              <input type="number" min="0" max="3" value={questionDraft.correctOptionIndex} onChange={(e) => setQuestionDraft((p) => ({ ...p, correctOptionIndex: e.target.value }))} />
-              <input type="number" min="1" value={questionDraft.marks} onChange={(e) => setQuestionDraft((p) => ({ ...p, marks: e.target.value }))} />
-              <input type="number" min="5" value={questionDraft.timeLimitSec} onChange={(e) => setQuestionDraft((p) => ({ ...p, timeLimitSec: e.target.value }))} />
-            </div>
-            <button onClick={addQuestion}>Add Question</button>
-            {submissions.length > 0 && (
+
+            <div className="fieldGrid">
               <div>
+                <label htmlFor="correctIndex">Correct Option (0 to 3)</label>
+                <input
+                  id="correctIndex"
+                  type="number"
+                  min="0"
+                  max="3"
+                  value={questionDraft.correctOptionIndex}
+                  onChange={(e) => setQuestionDraft((p) => ({ ...p, correctOptionIndex: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="marks">Marks</label>
+                <input
+                  id="marks"
+                  type="number"
+                  min="1"
+                  value={questionDraft.marks}
+                  onChange={(e) => setQuestionDraft((p) => ({ ...p, marks: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="timer">Timer (seconds)</label>
+                <input
+                  id="timer"
+                  type="number"
+                  min="5"
+                  value={questionDraft.timeLimitSec}
+                  onChange={(e) => setQuestionDraft((p) => ({ ...p, timeLimitSec: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <button onClick={addQuestion} disabled={!selectedTestId}>
+              Add Question
+            </button>
+
+            {submissions.length > 0 && (
+              <div className="submissionList">
                 <h4>Submissions</h4>
                 {submissions.map((s) => (
-                  <p key={s._id}>{s.userId?.name || "User"} - {s.score}/{s.totalMarks}</p>
+                  <div key={s._id} className="submissionRow">
+                    <span>{s.userId?.name || "User"}</span>
+                    <strong>
+                      {s.score}/{s.totalMarks}
+                    </strong>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         </section>
       ) : (
-        <section className="grid2">
-          <div className="card">
-            <h3>Available Tests</h3>
-            {tests.map((t) => (
-              <div key={t._id} className="testRow">
-                <div>
-                  <b>{t.title}</b>
-                  <p>{t.description}</p>
-                </div>
-                <button onClick={() => startTest(t._id)}>Start</button>
+        <section className="panel">
+          <h3>Available Tests</h3>
+          <p className="muted">Start a test to enter full-screen exam mode.</p>
+          {tests.length === 0 && <p className="muted">No published tests available right now.</p>}
+          {tests.map((t) => (
+            <div key={t._id} className="testCard">
+              <div>
+                <strong>{t.title}</strong>
+                <p>{t.description || "No description"}</p>
+                <small>{t.questions?.length || 0} questions</small>
               </div>
-            ))}
-          </div>
-
-          <div className="card">
-            {result ? (
-              <>
-                <h3>Result</h3>
-                <p>Score: {result.score} / {result.totalMarks}</p>
-                {result.review?.map((r, i) => (
-                  <div key={i} className="reviewItem">
-                    <b>{i + 1}. {r.question}</b>
-                    <p>Your answer: {r.selectedOptionIndex !== null ? r.options[r.selectedOptionIndex] : "Not answered"}</p>
-                    <p>Correct: {r.options[r.correctOptionIndex]}</p>
-                  </div>
-                ))}
-              </>
-            ) : questionState.question ? (
-              <>
-                <h3>Question {questionState.order}/{questionState.totalQuestions}</h3>
-                <p className={questionState.remaining < 6 ? "warning" : ""}>Time Left: {questionState.remaining}s</p>
-                <p>{questionState.question.prompt}</p>
-                <div className="options">
-                  {questionState.question.options.map((op, i) => (
-                    <button key={i} className={questionState.selectedOptionIndex === i ? "selected" : "ghost"} onClick={() => setQuestionState((p) => ({ ...p, selectedOptionIndex: i }))}>
-                      {op}
-                    </button>
-                  ))}
+              <button onClick={() => startTest(t._id)}>Start Test</button>
+            </div>
+          ))}
+          {result && (
+            <div className="resultPanel">
+              <h3>Result</h3>
+              <p className="scoreLine">
+                Score: {result.score} / {result.totalMarks}
+              </p>
+              {result.review?.map((r, i) => (
+                <div key={i} className="reviewItem">
+                  <b>
+                    {i + 1}. {r.question}
+                  </b>
+                  <p>Your answer: {r.selectedOptionIndex !== null ? r.options[r.selectedOptionIndex] : "Not answered"}</p>
+                  <p>Correct answer: {r.options[r.correctOptionIndex]}</p>
                 </div>
-                <button onClick={() => saveAnswer(false)}>Save & Next</button>
-                <button className="ghost" onClick={submitAttempt}>Submit Test</button>
-              </>
-            ) : (
-              <p>Select a test to start your attempt.</p>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
     </div>
