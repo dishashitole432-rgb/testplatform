@@ -51,6 +51,54 @@ button:disabled {
   color: #111827;
 }
 
+.dangerButton {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #111827;
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.linkAsButton {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.appTopStrip {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(246, 248, 251, 0.9);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.appTopInner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brandMini {
+  font-weight: 900;
+  letter-spacing: 0.2px;
+}
+
 .page {
   max-width: 1200px;
   margin: 0 auto;
@@ -100,6 +148,12 @@ button:disabled {
   border-radius: 16px;
   padding: 20px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+}
+
+.divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 18px 0;
 }
 
 .panel h3,
@@ -196,6 +250,58 @@ button:disabled {
 .reviewItem p {
   margin: 6px 0 0;
   color: #374151;
+}
+
+.questionTable {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.questionRow {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+}
+
+.questionMeta {
+  display: grid;
+  gap: 8px;
+}
+
+.questionTitle {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.qNum {
+  background: #e0ecff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.questionSub {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #6b7280;
+  font-size: 0.88rem;
+}
+
+.questionActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 140px;
 }
 
 .statusText {
@@ -372,5 +478,14 @@ button:disabled {
 
   .examActions {
     flex-direction: column;
+  }
+
+  .questionRow {
+    flex-direction: column;
+  }
+
+  .questionActions {
+    width: 100%;
+    flex-direction: row;
   }
 }
