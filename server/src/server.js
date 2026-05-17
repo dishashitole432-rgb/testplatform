@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectDB } from "./utils/connectDB.js";
+import { uploadsDir } from "./middleware/upload.js";
 import authRoutes from "./routes/authRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
 import attemptRoutes from "./routes/attemptRoutes.js";
@@ -18,6 +19,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use("/uploads", express.static(uploadsDir));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "test-platform-api" });

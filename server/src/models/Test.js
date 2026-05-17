@@ -13,6 +13,7 @@ const questionSchema = new mongoose.Schema(
     correctOptionIndex: { type: Number, min: 0, max: 3, required: true },
     marks: { type: Number, min: 1, default: 1 },
     timeLimitSec: { type: Number, min: 5, default: 30 },
+    imageUrl: { type: String, default: "" },
     order: { type: Number, required: true },
   },
   { _id: true }

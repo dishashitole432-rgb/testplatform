@@ -3,8 +3,26 @@ import { z } from "zod";
 import Test from "../models/Test.js";
 import Attempt from "../models/Attempt.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { uploadQuestionImage } from "../middleware/upload.js";
 
 const router = express.Router();
+
+const questionPayloadSchema = z.object({
+  prompt: z.string().min(2),
+  options: z.array(z.string().min(1)).length(4),
+  correctOptionIndex: z.number().int().min(0).max(3),
+  marks: z.number().int().min(1).default(1),
+  timeLimitSec: z.number().int().min(5).default(30),
+  imageUrl: z.string().optional(),
+});
+
+router.post("/upload-image", requireAuth, requireRole("admin"), (req, res) => {
+  uploadQuestionImage.single("image")(req, res, (err) => {
+    if (err) return res.status(400).json({ message: err.message || "Upload failed" });
+    if (!req.file) return res.status(400).json({ message: "No image file provided" });
+    return res.status(201).json({ imageUrl: `/uploads/${req.file.filename}` });
+  });
+});
 
 router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = z.object({ title: z.string().min(2), description: z.string().optional() }).safeParse(req.body);
@@ -41,30 +59,31 @@ router.delete("/:id", requireAuth, requireRole("admin"), async (req, res) => {
 });
 
 router.post("/:id/questions", requireAuth, requireRole("admin"), async (req, res) => {
-  const parsed = z
-    .object({
-      prompt: z.string().min(2),
-      options: z.array(z.string().min(1)).length(4),
-      correctOptionIndex: z.number().int().min(0).max(3),
-      marks: z.number().int().min(1).default(1),
-      timeLimitSec: z.number().int().min(5).default(30),
-    })
-    .safeParse(req.body);
+  const parsed = questionPayloadSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.issues });
   }
   const test = await Test.findOne({ _id: req.params.id, createdBy: req.user._id });
   if (!test) return res.status(404).json({ message: "Test not found" });
-  test.questions.push({ ...parsed.data, order: test.questions.length + 1 });
+  test.questions.push({
+    ...parsed.data,
+    imageUrl: parsed.data.imageUrl || "",
+    order: test.questions.length + 1,
+  });
   await test.save();
   return res.status(201).json(test);
 });
 
 router.patch("/questions/:questionId", requireAuth, requireRole("admin"), async (req, res) => {
+  const parsed = questionPayloadSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.issues });
+  }
   const test = await Test.findOne({ createdBy: req.user._id, "questions._id": req.params.questionId });
   if (!test) return res.status(404).json({ message: "Question not found" });
   const q = test.questions.id(req.params.questionId);
-  Object.assign(q, req.body);
+  Object.assign(q, parsed.data);
+  if (parsed.data.imageUrl === "") q.imageUrl = "";
   await test.save();
   return res.json(test);
 });

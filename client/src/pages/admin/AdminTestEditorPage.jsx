@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api";
+import QuestionImage from "../../components/QuestionImage";
 
 const emptyQuestion = {
   prompt: "",
@@ -8,7 +9,10 @@ const emptyQuestion = {
   correctOptionIndex: 0,
   marks: 1,
   timeLimitSec: 30,
+  imageUrl: "",
 };
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export default function AdminTestEditorPage() {
   const { testId } = useParams();
@@ -18,6 +22,9 @@ export default function AdminTestEditorPage() {
   const [testForm, setTestForm] = useState({ title: "", description: "" });
   const [questionForm, setQuestionForm] = useState(emptyQuestion);
   const [editingQuestionId, setEditingQuestionId] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+  const imageInputRef = useRef(null);
 
   const load = async () => {
     const { data } = await api.get("/tests/admin");
@@ -35,6 +42,61 @@ export default function AdminTestEditorPage() {
     setTestForm({ title: currentTest.title || "", description: currentTest.description || "" });
   }, [currentTest?._id]);
 
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl.startsWith("blob:")) URL.revokeObjectURL(imagePreviewUrl);
+    };
+  }, [imagePreviewUrl]);
+
+  const clearImageSelection = () => {
+    if (imagePreviewUrl.startsWith("blob:")) URL.revokeObjectURL(imagePreviewUrl);
+    setImageFile(null);
+    setImagePreviewUrl("");
+    setQuestionForm((p) => ({ ...p, imageUrl: "" }));
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const onImageSelected = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setStatus("Please choose a JPG, PNG, GIF, or WebP image.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setStatus("Image must be 5 MB or smaller.");
+      return;
+    }
+    if (imagePreviewUrl.startsWith("blob:")) URL.revokeObjectURL(imagePreviewUrl);
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+    setStatus("");
+  };
+
+  const uploadQuestionImage = async () => {
+    if (!imageFile) return questionForm.imageUrl || "";
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    const { data } = await api.post("/tests/upload-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data.imageUrl;
+  };
+
+  const buildQuestionPayload = (imageUrl) => ({
+    prompt: questionForm.prompt.trim(),
+    options: questionForm.options.map((o) => o.trim()),
+    correctOptionIndex: Number(questionForm.correctOptionIndex),
+    marks: Number(questionForm.marks),
+    timeLimitSec: Number(questionForm.timeLimitSec),
+    imageUrl: imageUrl || "",
+  });
+
+  const resetQuestionForm = () => {
+    clearImageSelection();
+    setQuestionForm(emptyQuestion);
+  };
+
   const saveTestDetails = async () => {
     if (!testForm.title.trim()) {
       setStatus("Test name is required.");
@@ -48,19 +110,19 @@ export default function AdminTestEditorPage() {
   const addQuestion = async () => {
     if (!questionForm.prompt.trim()) return setStatus("Question statement is required.");
     if (questionForm.options.some((o) => !o.trim())) return setStatus("Fill all four options.");
-    await api.post(`/tests/${testId}/questions`, {
-      prompt: questionForm.prompt.trim(),
-      options: questionForm.options.map((o) => o.trim()),
-      correctOptionIndex: Number(questionForm.correctOptionIndex),
-      marks: Number(questionForm.marks),
-      timeLimitSec: Number(questionForm.timeLimitSec),
-    });
-    setQuestionForm(emptyQuestion);
-    setStatus("Question added.");
-    await load();
+    try {
+      const imageUrl = await uploadQuestionImage();
+      await api.post(`/tests/${testId}/questions`, buildQuestionPayload(imageUrl));
+      resetQuestionForm();
+      setStatus("Question added.");
+      await load();
+    } catch {
+      setStatus("Failed to add question. Check the image and try again.");
+    }
   };
 
   const beginEditQuestion = (q) => {
+    clearImageSelection();
     setEditingQuestionId(q._id);
     setQuestionForm({
       prompt: q.prompt || "",
@@ -68,13 +130,14 @@ export default function AdminTestEditorPage() {
       correctOptionIndex: q.correctOptionIndex ?? 0,
       marks: q.marks ?? 1,
       timeLimitSec: q.timeLimitSec ?? 30,
+      imageUrl: q.imageUrl || "",
     });
     setStatus("");
   };
 
   const cancelEdit = () => {
     setEditingQuestionId("");
-    setQuestionForm(emptyQuestion);
+    resetQuestionForm();
     setStatus("");
   };
 
@@ -82,17 +145,16 @@ export default function AdminTestEditorPage() {
     if (!editingQuestionId) return;
     if (!questionForm.prompt.trim()) return setStatus("Question statement is required.");
     if (questionForm.options.some((o) => !o.trim())) return setStatus("Fill all four options.");
-    await api.patch(`/tests/questions/${editingQuestionId}`, {
-      prompt: questionForm.prompt.trim(),
-      options: questionForm.options.map((o) => o.trim()),
-      correctOptionIndex: Number(questionForm.correctOptionIndex),
-      marks: Number(questionForm.marks),
-      timeLimitSec: Number(questionForm.timeLimitSec),
-    });
-    setStatus("Question updated.");
-    setEditingQuestionId("");
-    setQuestionForm(emptyQuestion);
-    await load();
+    try {
+      const imageUrl = await uploadQuestionImage();
+      await api.patch(`/tests/questions/${editingQuestionId}`, buildQuestionPayload(imageUrl));
+      setStatus("Question updated.");
+      setEditingQuestionId("");
+      resetQuestionForm();
+      await load();
+    } catch {
+      setStatus("Failed to update question. Check the image and try again.");
+    }
   };
 
   const deleteQuestion = async (questionId) => {
@@ -161,6 +223,28 @@ export default function AdminTestEditorPage() {
           <label htmlFor="q">Question Statement</label>
           <textarea id="q" value={questionForm.prompt} onChange={(e) => setQuestionForm((p) => ({ ...p, prompt: e.target.value }))} />
 
+          <label htmlFor="qImage">Question Image (optional)</label>
+          <input
+            ref={imageInputRef}
+            id="qImage"
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            onChange={onImageSelected}
+          />
+          <p className="muted imageFieldHint">JPG, PNG, GIF, or WebP · up to 5 MB · candidates can click to zoom.</p>
+          {(imagePreviewUrl || questionForm.imageUrl) && (
+            <div className="imageUploadPreview">
+              <QuestionImage
+                imageUrl={imagePreviewUrl || questionForm.imageUrl}
+                alt="Question preview"
+                compact
+              />
+              <button type="button" className="ghostButton" onClick={clearImageSelection}>
+                Remove image
+              </button>
+            </div>
+          )}
+
           <label>Options</label>
           {questionForm.options.map((op, idx) => (
             <input
@@ -217,10 +301,12 @@ export default function AdminTestEditorPage() {
                     <span className="qNum">Q{idx + 1}</span>
                     <strong>{q.prompt}</strong>
                   </div>
+                  {q.imageUrl && <QuestionImage imageUrl={q.imageUrl} alt={`Question ${idx + 1}`} compact />}
                   <div className="questionSub">
                     <span>Correct: {String.fromCharCode(65 + (q.correctOptionIndex ?? 0))}</span>
                     <span>Marks: {q.marks}</span>
                     <span>Time: {q.timeLimitSec}s</span>
+                    {q.imageUrl && <span>Has image</span>}
                   </div>
                 </div>
                 <div className="questionActions">

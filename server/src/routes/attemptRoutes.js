@@ -12,6 +12,7 @@ const sanitizeQuestion = (q) => ({
   marks: q.marks,
   timeLimitSec: q.timeLimitSec,
   order: q.order,
+  imageUrl: q.imageUrl || "",
 });
 
 router.post("/start/:testId", requireAuth, requireRole("candidate", "admin"), async (req, res) => {
@@ -87,6 +88,7 @@ router.get("/:attemptId/result", requireAuth, requireRole("candidate", "admin"),
     const answer = attempt.answers.find((a) => a.questionId.toString() === q._id.toString());
     return {
       question: q.prompt,
+      imageUrl: q.imageUrl || "",
       options: q.options,
       selectedOptionIndex: answer?.selectedOptionIndex ?? null,
       correctOptionIndex: q.correctOptionIndex,

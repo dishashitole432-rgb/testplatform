@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api";
+import QuestionImage from "../../components/QuestionImage";
 
 export default function ResultPage() {
   const { attemptId } = useParams();
@@ -41,6 +42,7 @@ export default function ResultPage() {
                 <b>
                   {i + 1}. {r.question}
                 </b>
+                {r.imageUrl && <QuestionImage imageUrl={r.imageUrl} alt={`Question ${i + 1}`} compact />}
                 <p>Your answer: {r.selectedOptionIndex !== null ? r.options[r.selectedOptionIndex] : "Not answered"}</p>
                 <p>Correct answer: {r.options[r.correctOptionIndex]}</p>
               </div>

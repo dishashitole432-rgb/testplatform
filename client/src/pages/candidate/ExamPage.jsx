@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api";
+import QuestionImage from "../../components/QuestionImage";
 
 export default function ExamPage() {
   const { attemptId } = useParams();
@@ -92,6 +93,9 @@ export default function ExamPage() {
         ) : (
           <>
             <h3>{questionState.question.prompt}</h3>
+            {questionState.question.imageUrl && (
+              <QuestionImage imageUrl={questionState.question.imageUrl} alt={`Question ${questionState.order}`} />
+            )}
             <div className="optionList">
               {questionState.question.options.map((op, i) => (
                 <button
